@@ -702,8 +702,15 @@ Improves emacs startup time
   ;; Prefer side-by-side previews/opening in other windows.
   (setq split-height-threshold nil)
   (setq split-width-threshold 80)
-  ;; Cleaner listing if you're on GNU ls.
-  (setq dired-listing-switches "-alh --group-directories-first")
+  (cond
+   ((and (eq system-type 'darwin) (executable-find "gls"))
+    (setq insert-directory-program "gls"
+          dired-use-ls-dired t
+          dired-listing-switches "-alh --group-directories-first"))
+   ((eq system-type 'darwin)
+    (setq dired-listing-switches "-alh"))
+   (t
+    (setq dired-listing-switches "-alh --group-directories-first")))
 
   (use-package nerd-icons)
 
