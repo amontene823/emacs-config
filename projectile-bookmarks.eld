@@ -1,1 +1,0 @@
-("~/.config/emacs/" "~/org/" "~/Projects/myNixOS/" "~/Projects/myNixOS/modules/hosts/wsl/")

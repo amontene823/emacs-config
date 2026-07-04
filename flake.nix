@@ -14,46 +14,46 @@
         let
           pkgs = nixpkgs.legacyPackages.${system};
 
-          qtRuntimeLibraries = with pkgs; [
+          commonPackages = with pkgs; [
+            python313
+            uv
+          ];
+
+          linuxRuntimeLibraries = with pkgs; [
             libxkbcommon
-            xorg.libxcb
-            xorg.xcbutil
-            xorg.xcbutilcursor
-            xorg.xcbutilimage
-            xorg.xcbutilkeysyms
-            xorg.xcbutilrenderutil
-            xorg.xcbutilwm
-            xorg.libX11
-            xorg.libSM
-            xorg.libICE
+            libxcb
+            libxcb-util
+            libxcb-cursor
+            libxcb-image
+            libxcb-keysyms
+            libxcb-render-util
+            libxcb-wm
+            libx11
+            libsm
+            libice
             fontconfig
             freetype
             dbus
             glib
             wayland
-          ];
-
-          wheelRuntimeLibraries = with pkgs; [
+            mesa
+            libglvnd
             zlib
             zstd
             stdenv.cc.cc.lib
           ];
 
-          glRuntimeLibraries = with pkgs; [
-            mesa
-            libglvnd
+          darwinRuntimeLibraries = with pkgs; [
+            zlib
+            zstd
           ];
 
           runtimeLibraries =
-            qtRuntimeLibraries
-            ++ wheelRuntimeLibraries
-            ++ glRuntimeLibraries;
+            lib.optionals pkgs.stdenv.isLinux linuxRuntimeLibraries
+            ++ lib.optionals pkgs.stdenv.isDarwin darwinRuntimeLibraries;
         in {
           default = pkgs.mkShell {
-            packages = [
-              pkgs.python313
-              pkgs.uv
-            ] ++ runtimeLibraries;
+            packages = commonPackages ++ runtimeLibraries;
 
             env = (lib.optionalAttrs pkgs.stdenv.isLinux {
               LD_LIBRARY_PATH = lib.makeLibraryPath runtimeLibraries;
@@ -68,7 +68,7 @@
               if [ -d .venv ]; then
                 if ! .venv/bin/python -c 'import sys' >/dev/null 2>&1; then
                   rm -rf .venv
-                elif [ "$(readlink -f .venv/bin/python)" != "$(readlink -f "$UV_PYTHON")" ]; then
+                elif [ "$("$UV_PYTHON" -c 'import os; print(os.path.realpath(".venv/bin/python"))')" != "$("$UV_PYTHON" -c 'import os; print(os.path.realpath(os.environ["UV_PYTHON"]))')" ]; then
                   rm -rf .venv
                 fi
               fi
