@@ -1542,7 +1542,31 @@ Improves emacs startup time
                          (format "Overwrite %s? " target-file))))
           (user-error "Cancelled"))
         (my-org--paste-windows-clipboard-image target-file)
-        (my-org--insert-image-link target-file org-file))))
+        (my-org--insert-image-link target-file org-file)))
+
+    (defun am/wsl--windows-path (path)
+      "Return PATH converted to a Windows path."
+      (let ((wslpath (or (executable-find "wslpath")
+                         (user-error "wslpath is not on PATH"))))
+        (with-temp-buffer
+          (let ((exit-code (call-process wslpath nil t nil "-w" path)))
+            (unless (and (integerp exit-code) (zerop exit-code))
+              (user-error
+               "Could not convert path for Explorer: %s"
+               (replace-regexp-in-string
+                "\\`[ \t\n\r]+\\|[ \t\n\r]+\\'" "" (buffer-string)))))
+          (replace-regexp-in-string "[\r\n]+\\'" "" (buffer-string)))))
+
+    (defun am/wsl-open-in-explorer (file _link)
+      "Open FILE in Windows Explorer from WSL."
+      (let ((explorer (or (executable-find "explorer.exe")
+                          (let ((fallback "/mnt/c/Windows/explorer.exe"))
+                            (and (file-executable-p fallback) fallback))
+                          (user-error "explorer.exe is not available"))))
+        (start-process "explorer.exe" nil explorer (am/wsl--windows-path file))))
+
+    (with-eval-after-load 'org
+      (add-to-list 'org-file-apps '(directory . am/wsl-open-in-explorer))))
 
   ;; WSL-specific setup
   (when (and (eq system-type 'gnu/linux)
