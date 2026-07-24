@@ -1107,6 +1107,90 @@ With a prefix ARG, remove start location."
     (bibtex-completion-library-path '("~/references/articles" "~/references/books"))
     (bibtex-completion-notes-path "~/org/roam"))
 
+  (defun am/org-export--copy-files-skip-existing (files destination)
+    "Copy FILES into DESTINATION, skipping existing destination files."
+    (let ((destination (file-name-as-directory (expand-file-name destination)))
+          (copied 0)
+          (skipped 0)
+          (missing 0))
+      (make-directory destination t)
+      (dolist (source (delete-dups (mapcar #'expand-file-name files)))
+        (cond
+         ((not (file-regular-p source))
+          (setq missing (1+ missing)))
+         (t
+          (let ((target (expand-file-name (file-name-nondirectory source) destination)))
+            (if (file-exists-p target)
+                (setq skipped (1+ skipped))
+              (copy-file source target nil)
+              (setq copied (1+ copied)))))))
+      (list :copied copied :skipped skipped :missing missing)))
+
+  (defun am/org-export--citation-keys-in-buffer ()
+    "Return unique Org citation keys in the current buffer."
+    (require 'oc)
+    (save-restriction
+      (widen)
+      (delete-dups
+       (delq nil
+             (org-element-map (org-element-parse-buffer) 'citation-reference
+               (lambda (reference)
+                 (org-element-property :key reference)))))))
+
+  (defun am/org-export--citation-files-in-buffer ()
+    "Return literature files for citations in the current Org buffer."
+    (require 'citar)
+    (let* ((keys (am/org-export--citation-keys-in-buffer))
+           (files-by-key (and keys (citar-get-files keys)))
+           files)
+      (when files-by-key
+        (dolist (key keys)
+          (setq files (append (gethash key files-by-key) files))))
+      (delete-dups (nreverse files))))
+
+  (defun org-export-citation-files (destination)
+    "Copy cited literature files from the current Org buffer to DESTINATION.
+
+Files that already exist in DESTINATION are skipped."
+    (interactive (list (read-directory-name "Export citation files to: ")))
+    (unless (derived-mode-p 'org-mode)
+      (user-error "This command must be run from an Org buffer"))
+    (let* ((files (am/org-export--citation-files-in-buffer))
+           (result (am/org-export--copy-files-skip-existing files destination)))
+      (message "Exported citation files: %d copied, %d skipped, %d missing"
+               (plist-get result :copied)
+               (plist-get result :skipped)
+               (plist-get result :missing))))
+
+  (defun am/org-export--attach-files-in-buffer ()
+    "Return Org attach files from all headings in the current buffer."
+    (require 'org-attach)
+    (let (files)
+      (save-restriction
+        (widen)
+        (save-excursion
+          (org-map-entries
+           (lambda ()
+             (when-let ((directory (org-attach-dir)))
+               (dolist (file (org-attach-file-list directory))
+                 (push (expand-file-name file directory) files))))
+           nil 'file)))
+      (delete-dups (nreverse files))))
+
+  (defun org-export-attach-files (destination)
+    "Copy Org attach files from the current buffer to DESTINATION.
+
+Files that already exist in DESTINATION are skipped."
+    (interactive (list (read-directory-name "Export attach files to: ")))
+    (unless (derived-mode-p 'org-mode)
+      (user-error "This command must be run from an Org buffer"))
+    (let* ((files (am/org-export--attach-files-in-buffer))
+           (result (am/org-export--copy-files-skip-existing files destination)))
+      (message "Exported attach files: %d copied, %d skipped, %d missing"
+               (plist-get result :copied)
+               (plist-get result :skipped)
+               (plist-get result :missing))))
+
   ;; Sci-hub
 (defun sci-hub-pdf-url (doi)
   "Get url to the pdf from SCI-HUB"
