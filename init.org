@@ -1218,27 +1218,67 @@ Improves emacs startup time
               (setq copied (1+ copied)))))))
       (list :copied copied :skipped skipped :missing missing)))
 
-  (defun am/org-export--citation-keys-in-buffer ()
-    "Return unique Org citation keys in the current buffer."
-    (require 'oc)
-    (save-restriction
-      (widen)
-      (delete-dups
-       (delq nil
-             (org-element-map (org-element-parse-buffer) 'citation-reference
-               (lambda (reference)
-                 (org-element-property :key reference)))))))
+  (defun am/org-export--safe-directory-name (name)
+    "Return NAME sanitized for use as a directory name."
+    (let ((clean (replace-regexp-in-string
+                  "[[:cntrl:]/\\:*?\"<>|]+" "_" (or name ""))))
+      (setq clean (replace-regexp-in-string
+                   "\\`[[:space:]_.-]+\\|[[:space:]_.-]+\\'" "" clean))
+      (if (string= clean "") "No heading" clean)))
 
-  (defun am/org-export--citation-files-in-buffer ()
-    "Return literature files for citations in the current Org buffer."
+  (defun am/org-export--copy-file-records-skip-existing (records destination)
+    "Copy file RECORDS into DESTINATION, skipping existing destination files.
+
+Each record is a cons cell of the form (SOURCE-FILE . RELATIVE-DIRECTORY)."
+    (let ((destination (file-name-as-directory (expand-file-name destination)))
+          (copied 0)
+          (skipped 0)
+          (missing 0))
+      (make-directory destination t)
+      (dolist (record (delete-dups records))
+        (let* ((source (expand-file-name (car record)))
+               (relative-directory (cdr record))
+               (target-directory (if relative-directory
+                                     (expand-file-name relative-directory destination)
+                                   destination)))
+          (cond
+           ((not (file-regular-p source))
+            (setq missing (1+ missing)))
+           (t
+            (make-directory target-directory t)
+            (let ((target (expand-file-name (file-name-nondirectory source)
+                                            target-directory)))
+              (if (file-exists-p target)
+                  (setq skipped (1+ skipped))
+                (copy-file source target nil)
+                (setq copied (1+ copied))))))))
+      (list :copied copied :skipped skipped :missing missing)))
+
+  (defun am/org-export--citation-file-records-in-buffer ()
+    "Return citation file records grouped by nearest Org heading."
     (require 'citar)
-    (let* ((keys (am/org-export--citation-keys-in-buffer))
-           (files-by-key (and keys (citar-get-files keys)))
-           files)
-      (when files-by-key
-        (dolist (key keys)
-          (setq files (append (gethash key files-by-key) files))))
-      (delete-dups (nreverse files))))
+    (require 'oc)
+    (let (records)
+      (save-restriction
+        (widen)
+        (let* ((tree (org-element-parse-buffer))
+               (keys (delete-dups
+                      (delq nil
+                            (org-element-map tree 'citation-reference
+                              (lambda (reference)
+                                (org-element-property :key reference))))))
+               (files-by-key (and keys (citar-get-files keys))))
+          (when files-by-key
+            (org-element-map tree 'citation-reference
+              (lambda (reference)
+                (let* ((key (org-element-property :key reference))
+                       (heading (org-element-lineage reference '(headline) t))
+                       (heading-name (and heading (org-element-property :raw-value heading)))
+                       (relative-directory (and heading-name
+                                                (am/org-export--safe-directory-name heading-name))))
+                  (dolist (file (gethash key files-by-key))
+                    (push (cons file relative-directory) records))))))))
+      (delete-dups (nreverse records))))
 
   (defun org-export-citation-files (destination)
     "Copy cited literature files from the current Org buffer to DESTINATION.
@@ -1247,8 +1287,8 @@ Files that already exist in DESTINATION are skipped."
     (interactive (list (read-directory-name "Export citation files to: ")))
     (unless (derived-mode-p 'org-mode)
       (user-error "This command must be run from an Org buffer"))
-    (let* ((files (am/org-export--citation-files-in-buffer))
-           (result (am/org-export--copy-files-skip-existing files destination)))
+    (let* ((records (am/org-export--citation-file-records-in-buffer))
+           (result (am/org-export--copy-file-records-skip-existing records destination)))
       (message "Exported citation files: %d copied, %d skipped, %d missing"
                (plist-get result :copied)
                (plist-get result :skipped)
