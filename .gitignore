@@ -8,6 +8,8 @@
 /.direnv/
 /.venv/
 /auto-save-list/
+/agent/
+/agent-recall/
 /bookmarks
 /eln-cache/
 /elpa/

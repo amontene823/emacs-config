@@ -323,8 +323,21 @@
 
 (use-package agent-shell
   :commands (agent-shell
+             agent-shell-cycle-session-mode
+             agent-shell-fork
+             agent-shell-new-shell
+             agent-shell-new-worktree-shell
              agent-shell-openai-start-codex
-             agent-shell-opencode-start-agent)
+             agent-shell-opencode-start-agent
+             agent-shell-prompt-compose
+             agent-shell-resume-session
+             agent-shell-send-clipboard-image
+             agent-shell-send-screenshot
+             agent-shell-set-session-config-option
+             agent-shell-set-session-mode
+             agent-shell-set-session-model
+             agent-shell-set-session-thought-level
+             agent-shell-toggle)
   :ensure-system-package
   ((codex-acp . "npm install -g --prefix ~/.local @agentclientprotocol/codex-acp"))
   :init
@@ -369,6 +382,47 @@
 (use-package agent-shell-dashboard
   :straight (:host github :repo "wandersoncferreira/agent-shell-dashboard")
   :commands (agent-shell-dashboard))
+
+(use-package agent-shell-org-transcript
+  :straight (:host github :repo "lllShamanlll/agent-shell-org-transcript")
+  :after agent-shell
+  :custom
+  (agent-shell-org-transcript-directory
+   (file-truename "~/org/agent-shell/"))
+  :config
+  (make-directory agent-shell-org-transcript-directory t))
+
+(use-package agent-recall
+  :straight (:host github :repo "mrx-xo/agent-recall")
+  :after agent-shell
+  :commands (agent-recall-browse
+             agent-recall-consult-search
+             agent-recall-reindex
+             agent-recall-resume
+             agent-recall-search
+             agent-recall-search-live
+             agent-recall-stats)
+  :hook (agent-shell-mode . agent-recall-track-sessions)
+  :custom
+  (agent-recall-search-paths '("~/Projects" "~/org"))
+  (agent-recall-extra-transcript-dirs
+   `((:dir ,(file-truename "~/org/agent-shell/")
+      :project "agent-shell")))
+  (agent-recall-search-function 'consult-ripgrep)
+  (agent-recall-browse-sort 'modified-desc)
+  :config
+  (global-agent-recall-transcript-mode 1))
+
+(use-package latex-to-svg-backend
+  :straight (:host github :repo "alberti42/latex-to-svg-backend"))
+
+(use-package agent-shell-math-renderer
+  :straight (:host github :repo "alberti42/agent-shell-math-renderer")
+  :after (agent-shell latex-to-svg-backend)
+  :hook (agent-shell-mode . agent-shell-math-renderer-mode)
+  :config
+  (add-hook 'enable-theme-functions
+            #'agent-shell-math-renderer-on-theme-change))
 
 (use-package vertico
   ;; :custom
@@ -1596,6 +1650,32 @@ Files that already exist in DESTINATION are skipped."
    "C-." 'embark-act
    "C-i" 'evil-jump-forward)
   (am/leader-keys
+    "a"  '(:ignore a :which-key "AI")
+    "aa" '(agent-shell :which-key "Agent Shell")
+    "ac" '(agent-shell-openai-start-codex :which-key "Codex")
+    "ao" '(agent-shell-opencode-start-agent :which-key "OpenCode")
+    "ad" '(agent-shell-dashboard :which-key "Dashboard")
+    "at" '(agent-shell-toggle :which-key "Toggle")
+    "ap" '(agent-shell-prompt-compose :which-key "Compose Prompt")
+    "an" '(agent-shell-new-shell :which-key "New Session")
+    "aw" '(agent-shell-new-worktree-shell :which-key "New Worktree")
+    "af" '(agent-shell-fork :which-key "Fork Session")
+    "ar" '(agent-recall-resume :which-key "Recall Resume")
+    "av" '(agent-shell-set-session-model :which-key "Set Model")
+    "aM" '(agent-shell-set-session-mode :which-key "Set Mode")
+    "aT" '(agent-shell-set-session-thought-level :which-key "Set Thinking")
+    "aC" '(agent-shell-cycle-session-mode :which-key "Cycle Mode")
+    "aO" '(agent-shell-set-session-config-option :which-key "Set Option")
+    "ai" '(agent-shell-send-clipboard-image :which-key "Clipboard Image")
+    "as" '(agent-shell-send-screenshot :which-key "Screenshot")
+    "al" '(org-store-link :which-key "Store Link")
+    "aL" '(org-insert-link :which-key "Insert Link")
+    "ab" '(agent-recall-browse :which-key "Recall Browse")
+    "a/" '(agent-recall-search :which-key "Recall Search")
+    "a?" '(agent-recall-search-live :which-key "Recall Live Search")
+    "aI" '(agent-recall-reindex :which-key "Recall Reindex")
+    "aS" '(agent-recall-stats :which-key "Recall Stats")
+
     "b"  '(:ignore b :which-key "Buffer")
     "bb" '(next-buffer :which-key "Next")
     "bn" '(next-buffer :which-key "Next")
