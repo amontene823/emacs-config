@@ -46,6 +46,24 @@
 (straight-use-package 'use-package)
 (setq straight-use-package-by-default t)
 
+(use-package exec-path-from-shell
+  :if (memq window-system '(mac ns))
+  :config
+  (exec-path-from-shell-initialize))
+
+(defun am/add-to-exec-path (path)
+  "Add PATH to both `exec-path' and the process PATH environment."
+  (let ((expanded (expand-file-name path)))
+    (add-to-list 'exec-path expanded)
+    (setenv "PATH" (concat expanded path-separator (getenv "PATH")))))
+
+(dolist (path '("~/.local/bin" "~/.opencode/bin"))
+  (am/add-to-exec-path path))
+(when (eq system-type 'darwin)
+  (am/add-to-exec-path "/opt/homebrew/bin"))
+
+(require 'use-package-ensure-system-package)
+
 (use-package envrc
   :config
   (defun am/envrc-enable-for-buffer ()
@@ -302,6 +320,55 @@
     '(progn
        (define-key flyspell-mouse-map [down-mouse-3] #'flyspell-correct-word)
        (define-key flyspell-mouse-map [mouse-3] #'undefined))))
+
+(use-package agent-shell
+  :commands (agent-shell
+             agent-shell-openai-start-codex
+             agent-shell-opencode-start-agent)
+  :ensure-system-package
+  ((codex-acp . "npm install -g --prefix ~/.local @agentclientprotocol/codex-acp"))
+  :init
+  (setq agent-shell-prefer-viewport-interaction t)
+  :config
+  (setq agent-shell-openai-authentication
+        (agent-shell-openai-make-authentication :login t))
+
+  (setq agent-shell-write-inhibit-minor-modes
+        '(aggressive-indent-mode))
+
+  (with-eval-after-load 'evil
+    (evil-define-key 'insert agent-shell-mode-map (kbd "RET") #'newline)
+    (evil-define-key 'normal agent-shell-mode-map (kbd "RET") #'comint-send-input))
+
+  (add-hook 'diff-mode-hook
+            (lambda ()
+              (when (string-match-p "\\*agent-shell-diff\\*" (buffer-name))
+                (evil-emacs-state)))))
+
+(use-package agent-shell-macext
+  :if (eq system-type 'darwin)
+  :straight (:host github :repo "cxa/agent-shell-macext")
+  :after agent-shell
+  :hook (agent-shell-mode . agent-shell-macext-setup)
+  :custom
+  (agent-shell-macext-file-copy-policy 'auto)
+  (agent-shell-macext-notifications t)
+  (agent-shell-macext-notify-current-buffer nil))
+
+(use-package agent-shell-links
+  :straight (:host github :repo "ultronozm/agent-shell-links.el")
+  :after agent-shell
+  :config
+  (agent-shell-links-bookmark-setup)
+  (with-eval-after-load 'ol
+    (org-link-set-parameters
+     "agent-shell"
+     :follow #'agent-shell-links-org-follow
+     :store #'agent-shell-links-org-store)))
+
+(use-package agent-shell-dashboard
+  :straight (:host github :repo "wandersoncferreira/agent-shell-dashboard")
+  :commands (agent-shell-dashboard))
 
 (use-package vertico
   ;; :custom
