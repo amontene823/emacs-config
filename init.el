@@ -60,6 +60,7 @@
 (dolist (path '("~/.local/bin" "~/.opencode/bin"))
   (am/add-to-exec-path path))
 (when (eq system-type 'darwin)
+  (am/add-to-exec-path "/Library/TeX/texbin")
   (am/add-to-exec-path "/opt/homebrew/bin"))
 
 (require 'use-package-ensure-system-package)
@@ -1079,6 +1080,44 @@
 
 ;; Adjusts org latex font
 (setq org-format-latex-options '(:foreground default :background default :scale 1.5 :html-foreground "Black" :html-background "Transparent" :html-scale 1.0 :matchers ("begin" "$1" "$" "$$" "\\(" "\\[")))
+
+(when (eq system-type 'darwin)
+(setq org-format-latex-options '(:foreground default :background default :scale 1.0 :html-foreground "Black" :html-background "Transparent" :html-scale 1.0 :matchers ("begin" "$1" "$" "$$" "\\(" "\\["))))
+
+(defun am/org-latex-preview-set-process-property (process property value)
+  "Set PROPERTY to VALUE for PROCESS in `org-preview-latex-process-alist'."
+  (let ((entry (assq process org-preview-latex-process-alist)))
+    (when entry
+      (setcdr entry (plist-put (cdr entry) property value)))))
+
+(when (eq system-type 'darwin)
+  (let* ((texbin "/Library/TeX/texbin")
+         (latex (expand-file-name "latex" texbin))
+         (dvipng (expand-file-name "dvipng" texbin))
+         (dvisvgm (expand-file-name "dvisvgm" texbin)))
+    (when (and (file-executable-p latex)
+               (file-executable-p dvipng))
+      (am/org-latex-preview-set-process-property
+       'dvipng :programs (list latex dvipng))
+      (am/org-latex-preview-set-process-property
+       'dvipng :latex-compiler
+       (list (format "%s -interaction nonstopmode -output-directory %%o %%f" latex)))
+      (am/org-latex-preview-set-process-property
+       'dvipng :image-converter
+       (list (format "%s -D %%D -T tight -o %%O %%f" dvipng)))
+      (am/org-latex-preview-set-process-property
+       'dvipng :transparent-image-converter
+       (list (format "%s -D %%D -T tight -bg Transparent -o %%O %%f" dvipng))))
+    (when (and (file-executable-p latex)
+               (file-executable-p dvisvgm))
+      (am/org-latex-preview-set-process-property
+       'dvisvgm :programs (list latex dvisvgm))
+      (am/org-latex-preview-set-process-property
+       'dvisvgm :latex-compiler
+       (list (format "%s -interaction nonstopmode -output-directory %%o %%f" latex)))
+      (am/org-latex-preview-set-process-property
+       'dvisvgm :image-converter
+       (list (format "%s %%f --no-fonts --exact-bbox --scale=%%S --output=%%O" dvisvgm))))))
 
 (use-package cdlatex
   :hook (org-mode . turn-on-org-cdlatex))
